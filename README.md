@@ -7,7 +7,7 @@ Aplicación web Full Stack para administrar usuarios, servicios y reservas.
 ## Integrantes
 - Aprendiz 1: Helver Durán - (Frontend / Backend / DevOps)
 - Aprendiz 2: Diego Fajardo - (Backend / DevOps / Frontend)
-- Aprendiz 3 :Andrea Silva - (Integración / DevOps - Sprint 1)
+- Aprendiz 3 :Andrea Silva - (Integración - DevOps / Frontend / Backend)
 
 ## Tecnologías
 - **Frontend:** HTML/CSS/JavaScript (o Vue / Quasar)
