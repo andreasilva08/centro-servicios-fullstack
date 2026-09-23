@@ -25,4 +25,4 @@ Estructura cliente-servidor con API REST.
 
 ## Configuración de GitHub Projects
 - **Columnas:** Backlog, Pendiente, En Desarrollo, Code Review, Pruebas, Finalizado
-- **Campos Personalizados:** Tipo de Tarea, Tiempo Estimado (hrs), Complejidad
+- **Campos Personalizados:** Tipo de Tarea, Tiempo Estimado (hrs), Complejidad, Sprint
