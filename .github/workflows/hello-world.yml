@@ -1,0 +1,23 @@
+name: CI Hello World - Centro de Servicios
+
+# Cuándo se ejecuta el workflow
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+# Qué tareas va a realizar
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout del repositorio
+      uses: actions/checkout@v3
+
+    - name: Imprimir mensaje de bienvenida
+      run: echo "¡Hola Mundo! El flujo de integración continua de GitHub Actions está funcionando correctamente."
+
+    - name: Verificar versión de Node.js
+      run: node -v
