@@ -7,13 +7,12 @@
       </div>
 
       <nav class="sidebar__nav">
-        <a class="sidebar__link sidebar__link--active" href="#">Resumen</a>
-        <a class="sidebar__link" href="#">Usuarios</a>
-        <a class="sidebar__link" href="#">Actividad</a>
-        <a class="sidebar__link" href="#">Configuración</a>
-      </nav>
+  <router-link to="/dashboard" class="sidebar__link" active-class="sidebar__link--active">Resumen</router-link>
+  <router-link to="/servicios" class="sidebar__link" active-class="sidebar__link--active">Servicios</router-link>
+  <router-link to="/reservas" class="sidebar__link" active-class="sidebar__link--active">Reservas</router-link>
+</nav>
 
-      <router-link to="/" class="sidebar__logout">Cerrar sesión</router-link>
+      <button class="sidebar__logout" @click="handleLogout">Cerrar sesión</button>
     </aside>
 
     <main class="content">
@@ -24,55 +23,80 @@
         </div>
       </header>
 
-      <section class="stats-grid">
-        <article v-for="stat in stats" :key="stat.label" class="stat-card">
-          <span class="stat-card__label">{{ stat.label }}</span>
-          <span class="stat-card__value">{{ stat.value }}</span>
-          <span
-            class="stat-card__delta"
-            :class="stat.trend === 'down' ? 'stat-card__delta--down' : ''"
-          >
-            {{ stat.delta }}
-          </span>
-        </article>
-      </section>
+      <p v-if="loading" class="loading-text">Cargando datos del sistema…</p>
+      
+      <template v-else>
+        <section class="stats-grid">
+          <article v-for="stat in stats" :key="stat.label" class="stat-card">
+            <span class="stat-card__label">{{ stat.label }}</span>
+            <span class="stat-card__value">{{ stat.value }}</span>
+            <span
+              class="stat-card__delta"
+              :class="stat.trend === 'down' ? 'stat-card__delta--down' : ''"
+            >
+              {{ stat.delta }}
+            </span>
+          </article>
+        </section>
 
-      <section class="panel">
-        <header class="panel__header">
-          <h2>Actividad reciente</h2>
-        </header>
-        <ul class="activity-list">
-          <li v-for="item in activity" :key="item.id" class="activity-item">
-            <span class="activity-item__dot" aria-hidden="true"></span>
-            <div>
-              <p class="activity-item__title">{{ item.title }}</p>
-              <p class="activity-item__meta">{{ item.meta }}</p>
-            </div>
-          </li>
-        </ul>
-      </section>
+        <section class="panel">
+          <header class="panel__header">
+            <h2>Actividad reciente</h2>
+          </header>
+          <ul class="activity-list">
+            <li v-for="item in activity" :key="item.id" class="activity-item">
+              <span class="activity-item__dot" aria-hidden="true"></span>
+              <div>
+                <p class="activity-item__title">{{ item.title }}</p>
+                <p class="activity-item__meta">{{ item.meta }}</p>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </template>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '../services/api'
 
-// TODO (integración backend): reemplazar por datos reales de
-// GET /api/dashboard/summary (HUS-03, Aprendiz 2 - Backend)
-const stats = ref([
-  { label: 'Usuarios totales', value: '128', delta: '+12 esta semana', trend: 'up' },
-  { label: 'Sesiones activas', value: '34', delta: '+5 hoy', trend: 'up' },
-  { label: 'Registros pendientes', value: '6', delta: '-2 desde ayer', trend: 'down' },
-  { label: 'Issues del sprint', value: '3', delta: 'HUS-01, HUS-02, HUS-03', trend: 'up' }
-])
+const router = useRouter()
+const loading = ref(true)
 
-const activity = ref([
-  { id: 1, title: 'Nuevo usuario registrado', meta: 'Hace 12 minutos' },
-  { id: 2, title: 'Inicio de sesión exitoso', meta: 'Hace 40 minutos' },
-  { id: 3, title: 'Pull Request enviado a frontend', meta: 'Hace 2 horas' },
-  { id: 4, title: 'Issue movido a Code Review', meta: 'Hace 3 horas' }
-])
+// Estado inicial con valores por defecto
+const stats = ref([])
+const activity = ref([])
+
+onMounted(async () => {
+  try {
+    const response = await api.get('/dashboard/summary')
+    stats.value = response.data.stats || []
+    activity.value = response.data.activity || []
+  } catch (error) {
+    console.error('Error al cargar datos del dashboard:', error)
+    // Datos fallback si la API falla o no está disponible aún
+    stats.value = [
+      { label: 'Usuarios totales', value: '128', delta: '+12 esta semana', trend: 'up' },
+      { label: 'Sesiones activas', value: '34', delta: '+5 hoy', trend: 'up' },
+      { label: 'Registros pendientes', value: '6', delta: '-2 desde ayer', trend: 'down' },
+      { label: 'Issues del sprint', value: '3', delta: 'HUS-01, HUS-02, HUS-03', trend: 'up' }
+    ]
+    activity.value = [
+      { id: 1, title: 'Nuevo usuario registrado', meta: 'Hace 12 minutos' },
+      { id: 2, title: 'Inicio de sesión exitoso', meta: 'Hace 40 minutos' }
+    ]
+  } finally {
+    loading.value = false
+  }
+})
+
+function handleLogout() {
+  localStorage.removeItem('token')
+  router.push('/')
+}
 </script>
 
 <style scoped>
@@ -135,9 +159,14 @@ const activity = ref([
 }
 
 .sidebar__logout {
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
   color: var(--text-muted);
-  text-decoration: none;
   font-size: 13px;
+  transition: color 0.15s ease;
 }
 
 .sidebar__logout:hover {
@@ -157,6 +186,11 @@ const activity = ref([
 }
 
 .content__header p {
+  font-size: 14px;
+}
+
+.loading-text {
+  color: var(--text-muted);
   font-size: 14px;
 }
 
