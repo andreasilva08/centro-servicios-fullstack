@@ -50,6 +50,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthLayout from '../components/AuthLayout.vue'
 import FormField from '../components/FormField.vue'
+import api from '../services/api'
 
 const router = useRouter()
 
@@ -88,7 +89,7 @@ function validateField(field) {
   }
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   formError.value = ''
   validateField('email')
   validateField('password')
@@ -98,13 +99,26 @@ function handleSubmit() {
     return
   }
 
-  // TODO (integración backend): reemplazar por llamada real a
-  // POST /api/auth/login (HUS-01, Aprendiz 2 - Backend)
   submitting.value = true
-  setTimeout(() => {
-    submitting.value = false
+  try {
+    const response = await api.post('/auth/login', {
+      email: form.email,
+      password: form.password
+    })
+
+    // Guardar token devuelto por el backend
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token)
+    }
+
     router.push('/dashboard')
-  }, 600)
+  } catch (error) {
+    formError.value =
+      error.response?.data?.message ||
+      'Credenciales incorrectas o error de conexión.'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 

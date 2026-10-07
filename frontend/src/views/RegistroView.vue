@@ -70,6 +70,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AuthLayout from '../components/AuthLayout.vue'
 import FormField from '../components/FormField.vue'
+import api from '../services/api'
 
 const router = useRouter()
 
@@ -112,7 +113,6 @@ function validateField(field) {
     errors.password = form.password.length < 6
       ? 'Debe tener al menos 6 caracteres.'
       : ''
-    // Revalidar confirmación si ya se había escrito
     if (form.confirmPassword) validateField('confirmPassword')
   }
 
@@ -123,7 +123,7 @@ function validateField(field) {
   }
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   formError.value = ''
   formSuccess.value = ''
   ;['nombre', 'email', 'password', 'confirmPassword'].forEach(validateField)
@@ -134,14 +134,23 @@ function handleSubmit() {
     return
   }
 
-  // TODO (integración backend): reemplazar por llamada real a
-  // POST /api/users (HUS-02, Aprendiz 2 - Backend)
   submitting.value = true
-  setTimeout(() => {
+  try {
+    await api.post('/users', {
+      nombre: form.nombre,
+      email: form.email,
+      password: form.password
+    })
+
+    formSuccess.value = 'Cuenta creada correctamente. Redirigiendo...'
+    setTimeout(() => router.push('/'), 1200)
+  } catch (error) {
+    formError.value =
+      error.response?.data?.message ||
+      'No se pudo registrar el usuario. Intenta nuevamente.'
+  } finally {
     submitting.value = false
-    formSuccess.value = 'Cuenta creada correctamente. Ya puedes iniciar sesión.'
-    setTimeout(() => router.push('/'), 900)
-  }, 600)
+  }
 }
 </script>
 
