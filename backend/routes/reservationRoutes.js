@@ -1,0 +1,10 @@
+const router = require('express').Router();
+const { protect } = require('../middlewares/authMiddleware');
+const controller = require('../controllers/reservationController');
+router.use(protect);
+router.route('/').get(controller.listReservations).post(controller.createReservation);
+router.post('/:id/pay', controller.payReservation);
+router.post('/:id/refund-request', controller.requestRefund);
+router.patch('/:id/cancel', controller.cancelReservation);
+router.route('/:id').patch(controller.updateReservation).put(controller.updateReservation).delete(controller.deleteReservation);
+module.exports = router;

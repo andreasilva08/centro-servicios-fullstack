@@ -1,10 +1,10 @@
 <template>
   <AuthLayout
     title="Registrar usuario"
-    subtitle="Crea una cuenta nueva dentro del sistema."
+    subtitle="Crea tu cuenta para descubrir y reservar experiencias en San Gil."
     footnote="¿Ya tienes cuenta? Vuelve al inicio de sesión."
     aside-title="HUS-02 · Registro"
-    aside-text="Como administrador quiero registrar usuarios."
+    aside-text="Las cuentas con un correo que incluye 'admin' acceden al panel gerencial; las demás se registran como clientes."
     :aside-list="[
       'Creación de usuario',
       'Validación de datos',
@@ -35,7 +35,7 @@
         v-model="form.password"
         label="Contraseña"
         type="password"
-        placeholder="Mínimo 6 caracteres"
+        placeholder="Mínimo 8 caracteres"
         autocomplete="new-password"
         :error="errors.password"
         @blur="validateField('password')"
@@ -110,8 +110,8 @@ function validateField(field) {
   }
 
   if (field === 'password') {
-    errors.password = form.password.length < 6
-      ? 'Debe tener al menos 6 caracteres.'
+    errors.password = form.password.length < 8
+      ? 'Debe tener al menos 8 caracteres.'
       : ''
     if (form.confirmPassword) validateField('confirmPassword')
   }
@@ -136,17 +136,19 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
-    await api.post('/users', {
+    const response = await api.post('/auth/register', {
       nombre: form.nombre,
       email: form.email,
       password: form.password
     })
 
-    formSuccess.value = 'Cuenta creada correctamente. Redirigiendo...'
-    setTimeout(() => router.push('/'), 1200)
+    localStorage.setItem('token', response.data.token)
+    localStorage.setItem('user', JSON.stringify(response.data))
+    formSuccess.value = `${response.data.mensaje}. Redirigiendo...`
+    setTimeout(() => router.push(response.data.rol === 'admin' ? '/dashboard' : '/servicios'), 800)
   } catch (error) {
     formError.value =
-      error.response?.data?.message ||
+      error.response?.data?.mensaje || error.response?.data?.message ||
       'No se pudo registrar el usuario. Intenta nuevamente.'
   } finally {
     submitting.value = false

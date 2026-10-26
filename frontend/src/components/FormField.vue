@@ -41,13 +41,13 @@ defineEmits(['update:modelValue', 'blur'])
 }
 
 .field__input {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 11px 12px;
+  background: rgba(15, 23, 42, .82);
+  border: 1px solid rgba(71, 85, 105, .85);
+  border-radius: 12px;
+  padding: 12px 14px;
   font-size: 14px;
-  color: var(--text);
-  transition: border-color 0.15s ease;
+  color: #f8fafc;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
 }
 
 .field__input::placeholder {
@@ -55,7 +55,10 @@ defineEmits(['update:modelValue', 'blur'])
 }
 
 .field__input:focus {
-  border-color: var(--accent);
+  border-color: #818cf8;
+  outline: 0;
+  background: rgba(15, 23, 42, .98);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, .22);
 }
 
 .field__input--error {
@@ -66,4 +69,6 @@ defineEmits(['update:modelValue', 'blur'])
   font-size: 12.5px;
   color: var(--error);
 }
+.field__label { font-size: 14px; font-weight: 650; color: #e2e8f0; }
+.field__input { font-size: 15px; }
 </style>

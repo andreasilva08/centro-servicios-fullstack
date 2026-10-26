@@ -1,21 +1,36 @@
 const User = require('../models/User');
 const Service = require('../models/Service');
 const Reservation = require('../models/Reservation');
+const { getFinancialMetrics } = require('../services/financialMetrics');
 
-// @desc    Obtener totales agregados para el Dashboard (HUS-03)[cite: 1, 2]
-// @route   GET /api/dashboard/summary
 const getDashboardSummary = async (req, res) => {
   try {
-    const totalUsuarios = await User.countDocuments(); //[cite: 2]
-    const totalServicios = await Service.countDocuments(); //[cite: 2]
-    const totalReservas = await Reservation.countDocuments(); //[cite: 2]
+    const [totalUsuarios, totalAventureros, totalServicios, totalReservas, porEstado, finanzas, topSolicitado, pendientes, recientes] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ rol: 'cliente' }),
+      Service.countDocuments({ estado: 'activo' }),
+      Reservation.countDocuments(),
+      Reservation.aggregate([{ $group: { _id: '$estado', total: { $sum: 1 } } }]),
+      getFinancialMetrics(),
+      Reservation.aggregate([
+        { $group: { _id: '$servicio', reservas: { $sum: 1 }, participantes: { $sum: { $ifNull: ['$participantes', 1] } } } },
+        { $sort: { reservas: -1, participantes: -1 } }, { $limit: 1 },
+        { $lookup: { from: Service.collection.name, localField: '_id', foreignField: '_id', as: 'servicio' } },
+        { $unwind: { path: '$servicio', preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 0, id: '$_id', nombre: '$servicio.nombre', reservas: 1, participantes: 1 } }
+      ]),
+      Reservation.find({ estado: 'pendiente' }).populate('usuario', 'nombre email').populate('servicio', 'nombre').sort({ fecha: 1 }).limit(8),
+      Reservation.find().populate('usuario', 'nombre').populate('servicio', 'nombre').sort({ createdAt: -1 }).limit(5)
+    ]);
 
+    const reservasPorEstado = Object.fromEntries(['pendiente', 'confirmada', 'completada', 'cancelada'].map(estado => [estado, porEstado.find(item => item._id === estado)?.total || 0]));
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.json({
-      totales: {
-        usuarios: totalUsuarios,
-        servicios: totalServicios,
-        reservas: totalReservas
-      },
+      totales: { usuarios: totalUsuarios, aventureros: totalAventureros, servicios: totalServicios, reservas: totalReservas, ingresosCOP: finanzas.ingresosCOP, reembolsosCOP: finanzas.reembolsosCOP },
+      reservasPorEstado,
+      experienciaMasSolicitada: topSolicitado[0] || null,
+      reservasPendientes: pendientes.map(item => ({ id: item._id, fechaHora: item.fecha, clienteNombre: item.usuario?.nombre || item.clienteSnapshot?.nombre || 'Cliente', clienteEmail: item.usuario?.email || item.clienteSnapshot?.email || '', servicioNombre: item.servicio?.nombre || 'Servicio eliminado' })),
+      actividad: recientes.map(item => ({ id: item._id, title: `${item.usuario?.nombre || item.clienteSnapshot?.nombre || 'Cliente'} agendó ${item.servicio?.nombre || 'un servicio'}`, meta: item.createdAt })),
       fechaConsulta: new Date()
     });
   } catch (error) {
@@ -23,6 +38,4 @@ const getDashboardSummary = async (req, res) => {
   }
 };
 
-module.exports = {
-  getDashboardSummary
-};
+module.exports = { getDashboardSummary };

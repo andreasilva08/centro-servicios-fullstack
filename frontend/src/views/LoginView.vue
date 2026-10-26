@@ -2,8 +2,8 @@
   <AuthLayout
     title="Iniciar sesión"
     subtitle="Ingresa tus credenciales para acceder al sistema."
-    footnote="¿No tienes cuenta? Pide a un administrador que te registre."
-    aside-title="HUS-01 · Login"
+    footnote="¿Aún no tienes cuenta? Regístrate para reservar tu próxima aventura."
+    aside-title="El paisaje no se mira. Se vive. · Login"
     aside-text="Como usuario quiero iniciar sesión para acceder al sistema."
     :aside-list="[
       'Validación de credenciales',
@@ -39,7 +39,7 @@
       </button>
 
       <router-link to="/registro" class="form__link">
-        ¿Eres administrador y necesitas registrar un usuario?
+        Crear una cuenta para explorar San Gil
       </router-link>
     </form>
   </AuthLayout>
@@ -81,8 +81,8 @@ function validateField(field) {
   if (field === 'password') {
     if (!form.password) {
       errors.password = 'La contraseña es obligatoria.'
-    } else if (form.password.length < 6) {
-      errors.password = 'Debe tener al menos 6 caracteres.'
+    } else if (form.password.length < 8) {
+      errors.password = 'Debe tener al menos 8 caracteres.'
     } else {
       errors.password = ''
     }
@@ -109,12 +109,13 @@ async function handleSubmit() {
     // Guardar token devuelto por el backend
     if (response.data.token) {
       localStorage.setItem('token', response.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data))
     }
 
-    router.push('/dashboard')
+    router.push(response.data.rol === 'admin' ? '/dashboard' : '/servicios')
   } catch (error) {
     formError.value =
-      error.response?.data?.message ||
+      error.response?.data?.mensaje || error.response?.data?.message ||
       'Credenciales incorrectas o error de conexión.'
   } finally {
     submitting.value = false

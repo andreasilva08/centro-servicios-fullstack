@@ -1,16 +1,16 @@
 :root {
-  --bg: #14171d;
-  --surface: #1c212a;
-  --surface-raised: #232935;
-  --border: #2b3240;
-  --text: #edeff3;
-  --text-muted: #8b94a6;
-  --accent: #5b8cff;
-  --accent-hover: #7aa0ff;
-  --accent-soft: rgba(91, 140, 255, 0.14);
-  --success: #3ecf8e;
-  --error: #ff6b6b;
-  --error-soft: rgba(255, 107, 107, 0.12);
+  --bg: #0b1120;
+  --surface: #111827;
+  --surface-raised: #1e293b;
+  --border: #293548;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: rgba(99, 102, 241, 0.16);
+  --success: #34d399;
+  --error: #fb7185;
+  --error-soft: rgba(251, 113, 133, 0.12);
   --radius-sm: 8px;
   --radius-md: 12px;
   --font-display: 'Sora', sans-serif;
@@ -27,8 +27,11 @@ body {
   padding: 0;
 }
 
+button, a, input, select, textarea { transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease; }
+
 body {
-  background: var(--bg);
+  background: radial-gradient(ellipse at 75% -10%, #24304b 0%, transparent 38%), radial-gradient(ellipse at 4% 30%, #142b2d 0%, transparent 26%), linear-gradient(145deg, #0b1120, #0c1422 55%, #0b1120);
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;

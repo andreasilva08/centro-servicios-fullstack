@@ -3,7 +3,7 @@
     <section class="auth-panel">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name">Sistema Sprint 1</span>
+        <span class="brand-name">San Gil Aventura</span>
       </div>
 
       <div class="auth-card">
@@ -112,11 +112,20 @@ defineProps({
 
 .auth-aside {
   position: relative;
-  background: linear-gradient(160deg, #1a2030 0%, #10131a 100%);
+  isolation: isolate;
+  background: #10131a url('https://images.unsplash.com/photo-1530866495561-507c9faab2ed?auto=format&fit=crop&w=1800&q=90') center/cover no-repeat;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
   border-left: 1px solid var(--border);
+}
+
+.auth-aside::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(180deg, #07111a30 0%, #07111aa8 48%, #07111af5 100%), linear-gradient(90deg, #07111a35, transparent 85%);
 }
 
 .auth-aside__grid {
@@ -137,12 +146,17 @@ defineProps({
 
 .auth-aside__content h2 {
   color: var(--text);
-  font-size: 22px;
+  max-width: 480px;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
   margin-bottom: 12px;
 }
 
 .auth-aside__content p {
+  max-width: 420px;
   font-size: 14px;
+  line-height: 1.7;
   margin-bottom: 20px;
 }
 
