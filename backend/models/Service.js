@@ -1,6 +1,7 @@
 const serviceCategories = [...new Set(require('../seeders/adventureServices').map(service => service.categoria))];
 const mongoose = require('mongoose');
 
+// Esquema de Servicios (HUS-05)
 const serviceSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },

@@ -1,0 +1,25 @@
+* [33m2b3befd[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdevelop[m[33m, [m[1;32mmain[m[33m)[m feat: integración completa de transacciones, seeder masivo, notificaciones en tiempo real, validación de reembolsos y lógica contable de ingresos
+*   [33m115c3f0[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge pull request #21 from andreasilva08/feature/frontend-crud-servicios
+[32m|[m[33m\[m  
+[32m|[m *   [33m2bb31fc[m[33m ([m[1;31morigin/feature/frontend-crud-servicios[m[33m)[m Merge remote-tracking branch 'origin/main' into feature/frontend-crud-servicios
+[32m|[m [34m|[m[32m\[m  
+[32m|[m [34m|[m[32m/[m  
+[32m|[m[32m/[m[34m|[m   
+* [34m|[m   [33mc90c848[m Merge pull request #17 from andreasilva08/frontend
+[36m|[m[1;31m\[m [34m\[m  
+* [1;31m\[m [34m\[m   [33m0744965[m Merge pull request #16 from andreasilva08/backend
+[1;32m|[m[1;33m\[m [1;31m\[m [34m\[m  
+* [1;33m\[m [1;31m\[m [34m\[m   [33m157ca2b[m Merge pull request #14 from andreasilva08/develop
+[1;34m|[m[1;35m\[m [1;33m\[m [1;31m\[m [34m\[m  
+* [1;35m\[m [1;33m\[m [1;31m\[m [34m\[m   [33mc7a01b1[m Merge pull request #13 from andreasilva08/develop
+[1;36m|[m[31m\[m [1;35m\[m [1;33m\[m [1;31m\[m [34m\[m  
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m * [33m4cb2e78[m feat(frontend): vistas CRUD de servicios, reservas y navegacion vinculada
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [31m|[m * [33m30bfc00[m[33m ([m[1;31morigin/develop[m[33m)[m Merge pull request #20 from andreasilva08/feature/backend-crud-usuarios
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [31m|[m[31m/[m[33m|[m 
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [31m|[m * [33mc8d2936[m[33m ([m[1;31morigin/feature/backend-crud-usuarios[m[33m)[m style: cambiar titulo y estructura del encabezado principal
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [31m|[m * [33mb918624[m feat(backend): agregar endpoints CRUD para gestion de usuarios y servicios (HUS04/HUS05)
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [31m|[m[31m/[m  
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m *   [33mf569ca0[m Merge pull request #19 from andreasilva08/frontend
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [34m|[m[1;31m\[m  
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m [34m|[m[1;31m/[m  
+[1;36m|[m [31m|[m [1;35m|[m [1;33m|[m [1;31m|[m[1;31m/[m[34m|[m   
