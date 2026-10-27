@@ -61,7 +61,7 @@ Estructura cliente-servidor mediante **API REST** desplegada sobre arquitectura 
 
 Requisitos: Node.js y MongoDB local o una URI de MongoDB accesible.
 
-1. Copia `backend/.env.example` como `backend/.env` y configura `MONGO_URI` y un `JWT_SECRET` aleatorio. Opcionalmente define `ADMIN_EMAIL` / `ADMIN_PASSWORD` para aprovisionar el administrador al iniciar; de otro modo, la primera cuenta registrada recibe ese rol y las siguientes se crean como clientes.
+1. Copia `backend/.env.example` como `backend/.env` y configura `MONGO_URI` y un `JWT_SECRET` aleatorio. Opcionalmente define `ADMIN_EMAIL` / `ADMIN_PASSWORD` demas cuentas como clientes.
 2. En una terminal ejecuta `cd backend`, `npm install` y `npm run dev`.
 3. En otra terminal ejecuta `cd frontend`, `npm install` y `npm run dev`. Si el API usa otra dirección, define `VITE_API_URL` en `frontend/.env`.
 
