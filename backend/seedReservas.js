@@ -11,12 +11,13 @@ const User = require('./models/User');
 const Pago = require('./models/Pago');
 const Notificacion = require('./models/Notificacion');
 
-const RESERVATION_BATCH = 'reservas-demo-finanzas-2026-v3';
-const USER_BATCH = 'usuarios-demo-finanzas-2026-v2';
+const RESERVATION_BATCH = 'reservas-demo-finanzas-2026-v4';
+const USER_BATCH = 'usuarios-demo-finanzas-2026-v3';
 const REFERENCE_DATE = new Date('2026-10-26T23:59:59-05:00');
 const USER_COUNT = 50;
-const RESERVATION_COUNT = 80;
-const statusCounts = { completada: 20, confirmada: 25, cancelada: 15, pendiente: 20 };
+const PAYMENT_COUNTS = { aprobado: 60, reembolsado: 20, reembolsoPendiente: 10, digitalPendiente: 12, efectivoPendiente: 30, transferenciaPendiente: 15, rechazado: 5 };
+const RESERVATION_COUNT = Object.values(PAYMENT_COUNTS).reduce((sum, count) => sum + count, 0);
+const statusCounts = { completada: 20, confirmada: 40 + PAYMENT_COUNTS.reembolsoPendiente, cancelada: PAYMENT_COUNTS.reembolsado, pendiente: PAYMENT_COUNTS.digitalPendiente + PAYMENT_COUNTS.efectivoPendiente + PAYMENT_COUNTS.transferenciaPendiente + PAYMENT_COUNTS.rechazado };
 const firstNames = ['Valentina', 'Santiago', 'Camila', 'Mateo', 'Isabella', 'Juan Pablo', 'Luciana', 'Andrés', 'Mariana', 'Nicolás', 'Sofía', 'Tomás', 'Catalina', 'Sebastián', 'Gabriela', 'Samuel', 'Manuela', 'David', 'Emily', 'Oliver', 'Sophie', 'Liam', 'Noah', 'Amélie', 'Daniela'];
 const surnames = ['Rojas', 'Gómez', 'Rodríguez', 'Martínez', 'Hernández', 'López', 'García', 'Pérez', 'Ramírez', 'Torres', 'Flores', 'Castro', 'Vargas', 'Morales', 'Reyes', 'Herrera', 'Mendoza', 'Bennett', 'Miller', 'Johnson', 'Smith', 'Dubois', 'Silva', 'Costa', 'Brown'];
 const origins = [
@@ -83,38 +84,64 @@ async function run() {
   await connectDB.seedAdventureServices();
 
   const seedKeys = catalog.map(service => service.seedKey);
-  const services = await Service.find({ seedKey: { $in: seedKeys } }).sort({ seedKey: 1 });
+  const services = await Service.find({ seedKey: { $in: seedKeys } }).sort({ seedKey: 1 }).lean();
   if (services.length !== 30) throw new Error(`Se requieren los 30 servicios catalogados; se encontraron ${services.length}.`);
+  if (!services.every(service => service?._id)) throw new Error('El catálogo contiene un servicio sin identificador de MongoDB.');
 
-  // Remove only this seeder's previous records and the immediately preceding demo batch.
-  await Pago.deleteMany({ $or: [{ seedBatch: RESERVATION_BATCH }, { seedBatch: 'reservas-demo-75-2026-v2' }, { seedBatch: 'reservas-demo-75-2026-v1' }] });
-  await Reservation.deleteMany({ $or: [{ seedBatch: RESERVATION_BATCH }, { seedBatch: 'reservas-demo-75-2026-v2' }, { seedBatch: 'reservas-demo-75-2026-v1' }] });
-  await Notificacion.deleteMany({ seedBatch: { $in: [RESERVATION_BATCH, 'reservas-demo-75-2026-v2', 'reservas-demo-75-2026-v1'] } });
-  await User.deleteMany({ $or: [{ seedBatch: USER_BATCH }, { seedBatch: 'usuarios-demo-reservas-2026-v1' }] });
+  // Mantiene este comando repetible sin tocar datos ajenos a este lote demo.
+  const previousReservationBatches = [RESERVATION_BATCH, 'reservas-demo-finanzas-2026-v3', 'reservas-demo-75-2026-v2', 'reservas-demo-75-2026-v1'];
+  const previousUserBatches = [USER_BATCH, 'usuarios-demo-finanzas-2026-v2', 'usuarios-demo-reservas-2026-v1'];
+  await Pago.deleteMany({ seedBatch: { $in: previousReservationBatches } });
+  await Reservation.deleteMany({ seedBatch: { $in: previousReservationBatches } });
+  await Notificacion.deleteMany({ seedBatch: { $in: previousReservationBatches } });
+  await User.deleteMany({ seedBatch: { $in: previousUserBatches } });
 
   const principalAdmin = await ensurePrincipalAdmin();
-  const users = await User.create(Array.from({ length: USER_COUNT }, (_, index) => fakeProfile(index)));
+  await User.create(Array.from({ length: USER_COUNT }, (_, index) => fakeProfile(index)));
+  const users = await User.find({ seedBatch: USER_BATCH }).sort({ seedKey: 1 }).lean();
+  if (users.length !== USER_COUNT || !users.every(user => user?._id)) {
+    throw new Error(`Se esperaban ${USER_COUNT} clientes guardados con _id; se encontraron ${users.length}.`);
+  }
   const serviceRotation = shuffle(Array.from({ length: RESERVATION_COUNT }, (_, index) => services[index % services.length]));
-  const regularStates = shuffle([
-    ...Array(statusCounts.completada).fill('completada'),
-    ...Array(statusCounts.confirmada).fill('confirmada'),
-    ...Array(statusCounts.cancelada).fill('cancelada')
-  ]);
-  const statuses = [...regularStates, ...Array(statusCounts.pendiente).fill('pendiente')];
-  const recentPaymentStates = shuffle([
-    'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente', 'Pendiente',
-    'Pendiente de Validación en Oficina', 'Pendiente de Validación en Oficina', 'Pendiente de Validación en Oficina',
-    'Pendiente de Aprobación', 'Pendiente de Aprobación',
-    ...Array(10).fill('Rechazado')
-  ]);
+  if (serviceRotation.length !== RESERVATION_COUNT || serviceRotation.some(service => !service?._id)) {
+    throw new Error('No fue posible construir la lista de servicios con identificadores válidos.');
+  }
 
-  const reservations = statuses.map((estado, index) => {
+  const approvedScenarios = shuffle([
+    ...Array(statusCounts.completada).fill(null).map(() => ({ estado: 'completada', estadoPago: 'Aprobado' })),
+    ...Array(statusCounts.confirmada - PAYMENT_COUNTS.reembolsoPendiente).fill(null).map(() => ({ estado: 'confirmada', estadoPago: 'Aprobado' }))
+  ]).map((scenario, index) => ({ ...scenario, metodo: ['tarjeta', 'pse', 'nequi'][index % 3] }));
+  const refundedScenarios = Array.from({ length: PAYMENT_COUNTS.reembolsado }, (_, index) => ({
+    estado: 'cancelada', estadoPago: 'Reembolsado', metodo: ['tarjeta', 'pse', 'nequi', 'daviplata'][index % 4]
+  }));
+  const refundRequestScenarios = Array.from({ length: PAYMENT_COUNTS.reembolsoPendiente }, (_, index) => ({
+    estado: 'confirmada', estadoPago: 'Pendiente de Reembolso', metodo: ['tarjeta', 'pse', 'nequi', 'daviplata'][index % 4]
+  }));
+  const digitalPendingScenarios = Array.from({ length: PAYMENT_COUNTS.digitalPendiente }, (_, index) => ({
+    estado: 'pendiente', estadoPago: 'Pendiente', metodo: ['tarjeta', 'pse', 'nequi'][index % 3]
+  }));
+  const cashScenarios = Array.from({ length: PAYMENT_COUNTS.efectivoPendiente }, () => ({ estado: 'pendiente', estadoPago: 'Pendiente de Validaci\u00f3n en Oficina', metodo: 'efectivo' }));
+  const transferScenarios = Array.from({ length: PAYMENT_COUNTS.transferenciaPendiente }, () => ({ estado: 'pendiente', estadoPago: 'Pendiente de Aprobaci\u00f3n', metodo: 'transferencia' }));
+  const rejectedScenarios = Array.from({ length: PAYMENT_COUNTS.rechazado }, (_, index) => ({
+    estado: 'pendiente', estadoPago: 'Rechazado', metodo: ['tarjeta', 'pse', 'nequi', 'daviplata', 'transferencia'][index]
+  }));
+  const scenarios = [...approvedScenarios, ...refundedScenarios, ...refundRequestScenarios, ...digitalPendingScenarios, ...cashScenarios, ...transferScenarios, ...rejectedScenarios];
+  const recentStart = RESERVATION_COUNT - PAYMENT_COUNTS.transferenciaPendiente - PAYMENT_COUNTS.rechazado;
+
+  if (users.length === 0 || services.length === 0 || scenarios.length !== RESERVATION_COUNT) {
+    throw new Error('No se puede crear el lote: faltan usuarios, servicios o escenarios de pago.');
+  }
+
+  const reservations = scenarios.map(({ estado, estadoPago, metodo: methodKey }, index) => {
     const service = serviceRotation[index];
     const user = users[index % users.length];
+    if (!user?._id || !service?._id) throw new Error(`Falta el _id del usuario o servicio en la reserva ${index + 1}.`);
+    const metodo = paymentMethods.find(item => item.key === methodKey);
+    if (!metodo) throw new Error(`Método de pago desconocido en el escenario ${index + 1}: ${methodKey}.`);
     const participantes = 1 + Math.floor(Math.random() * 6);
     const seguroMedico = Math.random() < 0.25;
-    const paid = ['confirmada', 'completada'].includes(estado);
-    const refunded = estado === 'cancelada';
+    const paid = ['Aprobado', 'Reembolsado', 'Pendiente de Reembolso'].includes(estadoPago);
+    const refunded = estadoPago === 'Reembolsado';
     let fecha;
     if (estado === 'completada') fecha = randomDate(new Date('2026-01-02T07:00:00-05:00'), new Date('2026-09-30T17:00:00-05:00'));
     else if (estado === 'pendiente') fecha = randomDate(new Date('2026-10-27T07:00:00-05:00'), new Date('2026-12-31T17:00:00-05:00'));
@@ -122,20 +149,17 @@ async function run() {
     else if (index % 2 === 0) fecha = randomDate(new Date('2026-10-27T07:00:00-05:00'), new Date('2026-12-31T17:00:00-05:00'));
     else fecha = randomDate(new Date('2026-01-02T07:00:00-05:00'), new Date('2026-10-05T17:00:00-05:00'));
 
-    const unresolvedState = estado === 'pendiente' ? recentPaymentStates[index - regularStates.length] : null;
-    const metodo = unresolvedState === 'Pendiente de Validación en Oficina'
-      ? paymentMethods.find(item => item.key === 'efectivo')
-      : unresolvedState === 'Pendiente de Aprobación'
-        ? paymentMethods.find(item => item.key === 'transferencia')
-        : paymentMethods[(index * 7) % paymentMethods.length];
-    const pagadoEn = paid || refunded
-      ? (paid && fecha > REFERENCE_DATE
+    const pagadoEn = paid
+      ? (estado === 'confirmada' && fecha > REFERENCE_DATE
         ? new Date(REFERENCE_DATE.getTime() - (1 + Math.floor(Math.random() * 20)) * 86400000)
         : new Date(fecha.getTime() - 86400000))
       : null;
-    const unresolved = unresolvedState;
-    const estadoPago = refunded ? 'reembolsado' : paid ? 'aprobado' : unresolved === 'Rechazado' ? 'rechazado' : unresolved === 'Pendiente de Validación en Oficina' ? 'pendiente_validacion_oficina' : unresolved === 'Pendiente de Aprobación' ? 'pendiente_aprobacion' : 'pendiente_pago';
-    const cancelled = estado === 'cancelada';
+    const reservationPaymentState = ['Aprobado', 'Pendiente de Reembolso'].includes(estadoPago) ? 'aprobado'
+      : refunded ? 'reembolsado'
+        : estadoPago === 'Rechazado' ? 'rechazado'
+          : estadoPago === 'Pendiente' ? 'pendiente_pago'
+          : estadoPago === 'Pendiente de Validaci\u00f3n en Oficina' ? 'pendiente_validacion_oficina'
+            : 'pendiente_aprobacion';
 
     return {
       seedBatch: RESERVATION_BATCH,
@@ -157,23 +181,25 @@ async function run() {
       precioUnitario: service.precio,
       precioTotal: (service.precio + (seguroMedico ? 15000 : 0)) * participantes,
       estado,
-      estadoPago,
+      estadoPago: reservationPaymentState,
       metodoPago: metodo.key,
       pagadoEn,
-      ticketCode: paid || refunded ? `#SAN-GIL-DEMO-2026-${String(index + 1).padStart(3, '0')}` : undefined,
-      ...(cancelled ? { canceladaEn: new Date(fecha.getTime() - 3600000), motivoCancelacion: 'Cancelación registrada para demostración y trazabilidad de auditoría.' } : {})
+      ticketCode: paid ? `#SAN-GIL-DEMO-2026-${String(index + 1).padStart(3, '0')}` : undefined,
+      ...(estado === 'cancelada' ? { canceladaEn: new Date(fecha.getTime() - 3600000), motivoCancelacion: 'Cancelación de demostración con trazabilidad de auditoría.' } : {})
     };
   });
 
-  const savedReservations = await Reservation.insertMany(reservations, { ordered: true });
+  await Reservation.insertMany(reservations, { ordered: true });
+  const savedReservations = await Reservation.find({ seedBatch: RESERVATION_BATCH }).sort({ seedKey: 1 }).lean();
+  if (savedReservations.length !== RESERVATION_COUNT || !savedReservations.every(reservation => reservation?._id && reservation.usuario && reservation.servicio)) {
+    throw new Error(`Se esperaban ${RESERVATION_COUNT} reservas persistidas con usuario, servicio y _id válidos; se encontraron ${savedReservations.length}.`);
+  }
   const savedPayments = await Pago.insertMany(savedReservations.map((reservation, index) => {
-    const isRecent = index >= regularStates.length;
-    const method = paymentMethods.find(item => item.key === reservation.metodoPago);
-    const estadoPago = isRecent
-      ? recentPaymentStates[index - regularStates.length]
-      : reservation.estado === 'cancelada' ? 'Reembolsado' : 'Aprobado';
+    const scenario = scenarios[index];
+    const method = paymentMethods.find(item => item.key === scenario.metodo);
+    const isRecent = index >= recentStart;
     const fechaPago = isRecent
-      ? new Date(REFERENCE_DATE.getTime() - (statuses.length - 1 - index) * 3600000)
+      ? new Date(REFERENCE_DATE.getTime() - (RESERVATION_COUNT - 1 - index) * 3600000)
       : reservation.pagadoEn || new Date(REFERENCE_DATE.getTime() - (index + 1) * 86400000);
     const pago = {
       reservaId: reservation._id,
@@ -181,35 +207,45 @@ async function run() {
       monto: reservation.precioTotal,
       metodoPago: method.label,
       referenciaTransaccion: `TXN-2026-${crypto.randomBytes(6).toString('hex').toUpperCase()}`,
-      estadoPago,
+      estadoPago: scenario.estadoPago,
       fechaPago,
       seedBatch: RESERVATION_BATCH,
       seedKey: `${RESERVATION_BATCH}-payment-${String(index + 1).padStart(3, '0')}`
     };
     if (method.key === 'transferencia') pago.comprobanteReferencia = `COMPROBANTE-BANCO-${String(index + 1).padStart(5, '0')}`;
-    if (estadoPago === 'Rechazado') pago.motivoRechazo = index % 2 ? 'Comprobante inválido; solicitar una nueva referencia.' : 'Transacción rechazada por la entidad financiera.';
-    if (estadoPago === 'Reembolsado') {
+    if (scenario.estadoPago === 'Rechazado') pago.motivoRechazo = index % 2 ? 'Comprobante inválido; solicitar una nueva referencia.' : 'Transacción rechazada por la entidad financiera.';
+    if (scenario.estadoPago === 'Reembolsado') {
       pago.fechaReembolso = new Date(fechaPago.getTime() + 86400000);
       pago.referenciaReembolso = `REF-2026-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
       pago.motivoReembolso = 'Devolución por cancelación registrada en la reserva.';
     }
+    if (scenario.estadoPago === 'Pendiente de Reembolso') {
+      pago.fechaSolicitudReembolso = new Date(fechaPago.getTime() + 3600000);
+      pago.motivoSolicitudReembolso = ['Cambio de planes del grupo.', 'Solicitud por ajuste de itinerario.', 'No podremos asistir en la fecha reservada.', 'Solicitud de devolución por fuerza mayor.'][index % 4];
+    }
     return pago;
   }), { ordered: true });
 
-  const seededNotifications = savedReservations.flatMap((reservation, index) => reservation.estado === 'pendiente' ? [{
-    destinatarioRol: 'admin',
-    tipo: 'reserva_pendiente',
-    titulo: 'Reserva de demostración por revisar',
-    mensaje: `${reservation.clienteSnapshot.nombre} · ${paymentMethods.find(item => item.key === reservation.metodoPago).label} · ${savedPayments[index].estadoPago} · ${Number(reservation.precioTotal).toLocaleString('es-CO')} COP.`,
-    pagoId: savedPayments[index]._id,
-    reservaId: reservation._id,
-    leida: false,
-    seedBatch: RESERVATION_BATCH,
-    seedKey: `${RESERVATION_BATCH}-notification-${String(index + 1).padStart(3, '0')}`
-  }] : []);
+  const seededNotifications = savedReservations.flatMap((reservation, index) => {
+    const refundRequested = scenarios[index].estadoPago === 'Pendiente de Reembolso';
+    if (reservation.estado !== 'pendiente' && !refundRequested) return [];
+    return [{
+      destinatarioRol: 'admin',
+      tipo: refundRequested ? 'solicitud_reembolso' : 'reserva_pendiente',
+      titulo: refundRequested ? 'Solicitud de reembolso por revisar' : 'Reserva de demostración por revisar',
+      mensaje: refundRequested
+        ? `${reservation.clienteSnapshot.nombre} solicita devolver ${Number(reservation.precioTotal).toLocaleString('es-CO')} COP.`
+        : `${reservation.clienteSnapshot.nombre} · ${paymentMethods.find(item => item.key === reservation.metodoPago).label} · ${savedPayments[index].estadoPago} · ${Number(reservation.precioTotal).toLocaleString('es-CO')} COP.`,
+      pagoId: savedPayments[index]._id,
+      reservaId: reservation._id,
+      leida: false,
+      seedBatch: RESERVATION_BATCH,
+      seedKey: `${RESERVATION_BATCH}-notification-${String(index + 1).padStart(3, '0')}`
+    }];
+  });
   await Notificacion.insertMany(seededNotifications, { ordered: true });
 
-  const [createdUsers, createdReservations, paymentRecords, notificationRecords, adminRecord, approvedCount, refundedCount, rejectedCount, distinctServices, linkedReservations, uniqueReferences] = await Promise.all([
+  const [createdUsers, createdReservations, paymentRecords, notificationRecords, adminRecord, approvedCount, refundedCount, refundRequestCount, rejectedCount, cashCount, transferCount, distinctServices, linkedReservations, uniqueReferences, approvedMethodCounts] = await Promise.all([
     User.countDocuments({ seedBatch: USER_BATCH }),
     Reservation.countDocuments({ seedBatch: RESERVATION_BATCH }),
     Pago.countDocuments({ seedBatch: RESERVATION_BATCH }),
@@ -217,30 +253,50 @@ async function run() {
     User.findOne({ _id: principalAdmin._id, rol: 'admin', estado: 'activo' }).select('_id'),
     Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Aprobado' }),
     Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Reembolsado' }),
+    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente de Reembolso' }),
     Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Rechazado' }),
+    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, metodoPago: 'Efectivo', estadoPago: 'Pendiente de Validación en Oficina' }),
+    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, metodoPago: 'Transferencia Bancaria', estadoPago: 'Pendiente de Aprobación', comprobanteReferencia: { $ne: '' } }),
     Reservation.distinct('servicio', { seedBatch: RESERVATION_BATCH }),
     Pago.distinct('reservaId', { seedBatch: RESERVATION_BATCH }),
-    Pago.distinct('referenciaTransaccion', { seedBatch: RESERVATION_BATCH })
+    Pago.distinct('referenciaTransaccion', { seedBatch: RESERVATION_BATCH }),
+    Pago.aggregate([{ $match: { seedBatch: RESERVATION_BATCH, estadoPago: 'Aprobado' } }, { $group: { _id: '$metodoPago', count: { $sum: 1 } } }])
   ]);
-  const [paymentMethodCounts, pendingCount, officeValidationCount, bankApprovalCount] = await Promise.all([
-    Pago.aggregate([{ $match: { seedBatch: RESERVATION_BATCH } }, { $group: { _id: '$metodoPago', count: { $sum: 1 } } }]),
-    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente' }),
-    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente de Validación en Oficina' }),
-    Pago.countDocuments({ seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente de Aprobación' })
+  const latestAttempts = await Pago.find({ seedBatch: RESERVATION_BATCH }).sort({ fechaPago: -1 }).limit(20).select('estadoPago metodoPago comprobanteReferencia').lean();
+  const digitalPendingLabels = ['tarjeta', 'pse', 'nequi'].map(key => paymentMethods.find(method => method.key === key).label);
+  const digitalPendingCounts = await Pago.aggregate([
+    { $match: { seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente', metodoPago: { $in: digitalPendingLabels } } },
+    { $group: { _id: '$metodoPago', cantidad: { $sum: 1 } } }
   ]);
-  const methodsPresent = new Set(paymentMethodCounts.map(item => item._id));
-  const latestAttempts = await Pago.find({ seedBatch: RESERVATION_BATCH }).sort({ fechaPago: -1 }).limit(20).select('estadoPago').lean();
-  const latestAreUnresolved = latestAttempts.length === 20 && latestAttempts.every(payment => unresolvedStates.includes(payment.estadoPago));
-  const unresolvedCount = latestAttempts.filter(payment => unresolvedStates.includes(payment.estadoPago)).length;
-  const allMethodsPresent = paymentMethods.every(method => methodsPresent.has(method.label));
-  if (!adminRecord || createdUsers !== USER_COUNT || createdReservations !== RESERVATION_COUNT || paymentRecords !== RESERVATION_COUNT || notificationRecords !== statusCounts.pendiente || approvedCount !== 45 || refundedCount !== 15 || rejectedCount !== 10 || pendingCount !== 5 || officeValidationCount !== 3 || bankApprovalCount !== 2 || unresolvedCount !== 20 || !allMethodsPresent || distinctServices.length !== 30 || linkedReservations.length !== RESERVATION_COUNT || uniqueReferences.length !== RESERVATION_COUNT || !latestAreUnresolved) {
-    throw new Error(`Verificación fallida: admin=${Boolean(adminRecord)}, usuarios=${createdUsers}, reservas=${createdReservations}, pagos=${paymentRecords}, alertas=${notificationRecords}, aprobados=${approvedCount}, reembolsados=${refundedCount}, pendientes=${pendingCount}/${officeValidationCount}/${bankApprovalCount}, rechazados=${rejectedCount}, métodos=${paymentMethodCounts.length}, servicios=${distinctServices.length}, refs=${uniqueReferences.length}.`);
+  const digitalPendingByMethod = Object.fromEntries(digitalPendingCounts.map(item => [item._id, item.cantidad]));
+  const digitalPendingCount = digitalPendingCounts.reduce((total, item) => total + item.cantidad, 0);
+  const refundRequestRecords = await Pago.find({ seedBatch: RESERVATION_BATCH, estadoPago: 'Pendiente de Reembolso' })
+    .populate('reservaId', 'usuario')
+    .populate('clienteId', '_id')
+    .lean();
+  const refundRequestsLinked = refundRequestRecords.length === PAYMENT_COUNTS.reembolsoPendiente
+    && refundRequestRecords.every(payment => payment.reservaId && payment.clienteId && String(payment.reservaId.usuario) === String(payment.clienteId._id));
+  const latestAreExpected = latestAttempts.length === 20
+    && latestAttempts.filter(payment => payment.estadoPago === 'Pendiente de Aprobación' && payment.metodoPago === 'Transferencia Bancaria' && payment.comprobanteReferencia).length === PAYMENT_COUNTS.transferenciaPendiente
+    && latestAttempts.filter(payment => payment.estadoPago === 'Rechazado').length === PAYMENT_COUNTS.rechazado;
+  const approvedByMethod = Object.fromEntries(approvedMethodCounts.map(item => [item._id, item.count]));
+  const expectedAlerts = statusCounts.pendiente + PAYMENT_COUNTS.reembolsoPendiente;
+  const allMethodsPresent = paymentMethods.every(method => savedPayments.some(payment => payment.metodoPago === method.label));
+
+  if (!adminRecord || createdUsers !== USER_COUNT || createdReservations !== RESERVATION_COUNT || paymentRecords !== RESERVATION_COUNT
+    || notificationRecords !== expectedAlerts || approvedCount !== PAYMENT_COUNTS.aprobado || refundedCount !== PAYMENT_COUNTS.reembolsado
+    || refundRequestCount !== PAYMENT_COUNTS.reembolsoPendiente || digitalPendingCount !== PAYMENT_COUNTS.digitalPendiente
+    || digitalPendingLabels.some(method => (digitalPendingByMethod[method] || 0) !== PAYMENT_COUNTS.digitalPendiente / 3)
+    || rejectedCount !== PAYMENT_COUNTS.rechazado || cashCount !== PAYMENT_COUNTS.efectivoPendiente || transferCount !== PAYMENT_COUNTS.transferenciaPendiente
+    || ['Tarjeta de Crédito', 'PSE', 'Nequi'].some(method => (approvedByMethod[method] || 0) < 20)
+    || !allMethodsPresent || distinctServices.length !== 30 || linkedReservations.length !== RESERVATION_COUNT
+    || uniqueReferences.length !== RESERVATION_COUNT || !latestAreExpected || !refundRequestsLinked) {
+    throw new Error(`Verificación fallida: admin=${Boolean(adminRecord)}, usuarios=${createdUsers}, reservas=${createdReservations}, pagos=${paymentRecords}, alertas=${notificationRecords}, aprobados=${approvedCount}, reembolsados=${refundedCount}, efectivo=${cashCount}, transferencias=${transferCount}, rechazados=${rejectedCount}, servicios=${distinctServices.length}, referencias=${uniqueReferences.length}.`);
   }
 
-  console.log(`Siembra sincronizada: admin principal ${principalAdmin.email}, ${createdUsers} clientes, ${createdReservations} reservas, ${paymentRecords} pagos y ${notificationRecords} alertas en ${distinctServices.length} servicios.`);
-  console.log(`Estados financieros: aprobados=${approvedCount}, reembolsados=${refundedCount}, rechazados=${rejectedCount}, pendientes recientes=${unresolvedCount}.`);
-  console.log(`Estados de reserva: ${Object.entries(statusCounts).map(([status, count]) => `${status}=${count}`).join(', ')}; últimos 20 pagos requieren revisión.`);
-  console.log('Cuentas de prueba: contraseña compartida DemoSanGil2026!; correos bajo @demo-viajeros.example.');
+  console.log(`Siembra sincronizada: admin ${principalAdmin.email}, ${createdUsers} clientes, ${createdReservations} reservas y pagos en ${distinctServices.length} servicios.`);
+  console.log(`Finanzas: ${approvedCount} aprobados (Tarjeta/PSE/Nequi: ${approvedByMethod['Tarjeta de Crédito']}/${approvedByMethod.PSE}/${approvedByMethod.Nequi}), ${refundedCount} reembolsados, ${refundRequestCount} solicitudes de reembolso pendientes, ${cashCount} efectivo pendiente de validación, ${transferCount} transferencias por aprobar y ${rejectedCount} rechazados.`);
+  console.log(`Se crearon ${notificationRecords} alertas: ${statusCounts.pendiente} reservas pendientes y ${PAYMENT_COUNTS.reembolsoPendiente} solicitudes de reembolso; los últimos 20 pagos incluyen ${PAYMENT_COUNTS.transferenciaPendiente} transferencias con comprobante y ${PAYMENT_COUNTS.rechazado} rechazos.`);
 }
 
 run()
